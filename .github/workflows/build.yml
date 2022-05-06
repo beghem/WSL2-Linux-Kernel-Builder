@@ -1,14 +1,47 @@
 name: Kernel Build
 
-on: [push]
+on:
+  push:
+  schedule:
+    - cron: '30 5 * * 1'
 
 jobs:
 
-  checkout-kernel:
+  build:
+    strategy:
+      matrix:
+        branch: ['linux-msft-wsl-5.10.y', 'linux-msft-wsl-5.4.y']
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+      name: Checkout WSL2 Kernel Builder
+    - uses: actions/checkout@v3
       name: Checkout WSL2 Kernel Repo
       with:
-        repository: 'https://github.com/microsoft/WSL2-Linux-Kernel.git'
-        path: 'kernel'
+        repository: 'microsoft/WSL2-Linux-Kernel'
+        ref: ${{ matrix.branch }}
+        path: 'kernel-${{ matrix.branch }}'
+    - name: Install Toolchain
+      run: |
+        sudo apt update
+        sudo apt install build-essential flex bison libssl-dev libelf-dev libncurses-dev autoconf libudev-dev libtool
+    - name: Apply CAN Config
+      working-directory: ./kernel-${{ matrix.branch }}
+      run: |
+        cp Microsoft/config-wsl ./.config
+        sed -Ei "s/(CONFIG_LOCALVERSION=\")(.*)(\")/\1-can-usbip-WSL2\3/g" .config
+        scripts/kconfig/merge_config.sh .config ../can.config
+    - name: Apply USB Config
+      if: ${{ matrix.branch != 'linux-msft-wsl-5.10.y' }}
+      working-directory: ./kernel-${{ matrix.branch }}
+      run: scripts/kconfig/merge_config.sh .config ../usb.config
+    - name: Build
+      working-directory: ./kernel-${{ matrix.branch }}
+      run: |
+        make -j $(echo `nproc` + 1 | bc)
+        mv arch/x86/boot/bzImage arch/x86/boot/${{ matrix.branch }}-can-usbip-bzImage
+    - name: Archive kernel
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.branch }}-usbip-can
+        path: kernel-${{ matrix.branch }}/arch/x86/boot/${{ matrix.branch }}-can-usbip-bzImage
