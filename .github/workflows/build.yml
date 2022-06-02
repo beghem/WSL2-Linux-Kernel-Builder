@@ -13,33 +13,44 @@ jobs:
         branch: ['linux-msft-wsl-5.10.y', 'linux-msft-wsl-5.4.y']
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-      name: Checkout WSL2 Kernel Builder
-    - uses: actions/checkout@v3
-      name: Checkout WSL2 Kernel Repo
+
+    - name: Checkout WSL2 Kernel Builder
+      uses: actions/checkout@v3
+
+    - name: Checkout WSL2 Kernel Repo
+      uses: actions/checkout@v3
       with:
         repository: 'microsoft/WSL2-Linux-Kernel'
         ref: ${{ matrix.branch }}
         path: 'kernel-${{ matrix.branch }}'
+
     - name: Install Toolchain
       run: |
         sudo apt update
         sudo apt install build-essential flex bison libssl-dev libelf-dev libncurses-dev autoconf libudev-dev libtool
+
+    - name: Get Default Config
+      working-directory: ./kernel-${{ matrix.branch }}
+      run: cp Microsoft/config-wsl ./.config
+
+    - name: Apply USB Config # for 5.4. branch only
+      if: ${{ matrix.branch == 'linux-msft-wsl-5.4.y' }}
+      working-directory: ./kernel-${{ matrix.branch }}
+      run: scripts/kconfig/merge_config.sh -m -y .config ../usb.config
+
     - name: Apply CAN Config
       working-directory: ./kernel-${{ matrix.branch }}
       run: |
-        cp Microsoft/config-wsl ./.config
         sed -Ei "s/(CONFIG_LOCALVERSION=\")(.*)(\")/\1-can-usbip-WSL2\3/g" .config
-        scripts/kconfig/merge_config.sh .config ../can.config
-    - name: Apply USB Config
-      if: ${{ matrix.branch != 'linux-msft-wsl-5.10.y' }}
-      working-directory: ./kernel-${{ matrix.branch }}
-      run: scripts/kconfig/merge_config.sh .config ../usb.config
+        for file in ../[^usb]*.config; do scripts/kconfig/merge_config.sh -m -y .config $file ; done
+        scripts/kconfig/merge_config.sh -y .config ../can.config
+
     - name: Build
       working-directory: ./kernel-${{ matrix.branch }}
       run: |
         make -j $(echo `nproc` + 1 | bc)
         mv arch/x86/boot/bzImage arch/x86/boot/${{ matrix.branch }}-can-usbip-bzImage
+
     - name: Archive kernel
       uses: actions/upload-artifact@v3
       with:
