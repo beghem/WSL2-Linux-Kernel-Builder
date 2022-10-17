@@ -54,5 +54,5 @@ jobs:
     - name: Archive kernel
       uses: actions/upload-artifact@v3
       with:
-        name: ${{ matrix.branch }}-usbip-can
+        name: ${{ matrix.branch }}-can-usbip
         path: kernel-${{ matrix.branch }}/arch/x86/boot/${{ matrix.branch }}-can-usbip-bzImage
