@@ -10,7 +10,7 @@ jobs:
   build:
     strategy:
       matrix:
-        branch: ['linux-msft-wsl-5.10.y', 'linux-msft-wsl-5.4.y']
+        branch: ['linux-msft-wsl-5.15.y', 'linux-msft-wsl-5.10.y', 'linux-msft-wsl-5.4.y']
     runs-on: ubuntu-latest
     steps:
 
